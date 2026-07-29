@@ -49,6 +49,36 @@ def _label_for_score(score: int) -> str:
 _QUOTE_HEADER_RE = re.compile(r"\n\s*(From:|Sent:|To:|Cc:|Subject:)\s", re.IGNORECASE)
 
 
+_NAME_TOKEN_RE = re.compile(r"[a-z0-9]+")
+
+
+def _name_tokens(text: str) -> set[str]:
+    """Lowercase word tokens, stripping punctuation - used so name matching
+    doesn't care about word order or separators (commas, periods, ...)."""
+    return set(_NAME_TOKEN_RE.findall(text.lower()))
+
+
+def _sender_matches_entry(entry: str, sender_email: str, sender_name: str) -> bool:
+    """
+    True if a configured sender entry (from priority_senders/low_priority_senders)
+    matches this mail's sender. An entry containing '@' must match the sender's
+    email exactly; otherwise it's treated as a name and matched by token subset
+    rather than a literal substring - Outlook often displays names as
+    "Last, First Middle" (e.g. "Dnv, Sarath B"), which a naive substring check
+    against a naturally-typed "Sarath DNV" would miss entirely since the word
+    order is reversed.
+    """
+    entry = entry.strip().lower()
+    if not entry:
+        return False
+    if "@" in entry:
+        return entry == sender_email
+    entry_tokens = _name_tokens(entry)
+    if not entry_tokens:
+        return False
+    return entry_tokens.issubset(_name_tokens(sender_name))
+
+
 def _heuristic_summary(body_preview: str, max_chars: int = 160) -> str:
     """
     Cheap, no-LLM extractive summary: drop quoted reply-chain history (the
@@ -126,7 +156,6 @@ class RuleBasedScorer(BaseScorer):
         text = f"{mail.subject} {mail.body_preview}".lower()
         sender_email = (mail.sender_email or "").lower()
         sender_domain = sender_email.split("@")[-1] if "@" in sender_email else ""
-        sender_name_lower = (mail.sender_name or "").lower()
 
         if sender_domain in self.vip_domains:
             signals.append((25, "VIP domain"))
@@ -154,7 +183,7 @@ class RuleBasedScorer(BaseScorer):
 
         # Rule 3: sender (matched by email or by name) is on the priority senders list
         is_priority_sender = any(
-            entry == sender_email or (entry and entry in sender_name_lower)
+            _sender_matches_entry(entry, sender_email, mail.sender_name)
             for entry in self.priority_senders
         )
         if is_priority_sender:
@@ -163,7 +192,7 @@ class RuleBasedScorer(BaseScorer):
         # Rule 3b: sender is a specific person you've flagged as always lower priority
         # (distinct from automated/system senders, which are detected separately).
         is_low_priority_sender = any(
-            entry == sender_email or (entry and entry in sender_name_lower)
+            _sender_matches_entry(entry, sender_email, mail.sender_name)
             for entry in self.low_priority_senders
         )
         if is_low_priority_sender:
