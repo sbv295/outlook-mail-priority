@@ -12,21 +12,11 @@ user to install it (Git for Windows / python.org) and stop here.
 
 ## Step 2 - Clone the repository
 
-Clone this private repo into the user's home directory:
-
 ```powershell
 git clone https://github.com/sbv295/outlook-mail-priority.git "$HOME\OutlookMailPriority"
 ```
 
-- If a folder with that name already exists, `cd` into it and run `git pull` instead of cloning.
-- This is a **private** repository. If the clone fails with a permission/authentication error:
-  1. Tell the user they need to be invited as a collaborator on the repo by its owner first.
-  2. Check if the GitHub CLI is installed (`gh --version`). If not, install it:
-     `winget install --id GitHub.cli -e --accept-source-agreements --accept-package-agreements`
-     (you may need to add `C:\Program Files\GitHub CLI` to PATH for the current session).
-  3. Run `gh auth login` and let the user complete the interactive login themselves (browser or
-     token) - this step needs their own GitHub credentials, you cannot do it for them.
-  4. Retry the `git clone` command.
+If a folder with that name already exists, `cd` into it and run `git pull` instead of cloning.
 
 ## Step 3 - Install dependencies
 
