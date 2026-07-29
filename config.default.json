@@ -1,0 +1,55 @@
+{
+  "priority_senders": [],
+  "low_priority_senders": [],
+  "vip_domains": [],
+  "automated_senders": [
+    "do_not_reply",
+    "noreply",
+    "no-reply",
+    "notifications",
+    "jira",
+    "@ecsmtp."
+  ],
+  "urgent_keywords": [
+    "urgent",
+    "asap",
+    "action required",
+    "action needed",
+    "deadline",
+    "due today",
+    "due tomorrow",
+    "response needed",
+    "please respond",
+    "escalation",
+    "blocker",
+    "blocked",
+    "critical",
+    "approval needed",
+    "sign off",
+    "reminder"
+  ],
+  "name_patterns": [
+    { "template": "@{name}\\b", "weight": 40, "reason": "@-mentioned by name in body" },
+    { "template": "\\b(hi|hello|dear|hey)\\s+{name}\\b", "weight": 25, "reason": "Addressed by name in greeting" },
+    { "template": "ar\\s*:\\s*{name}\\b", "weight": 15, "reason": "AR tagged to name" }
+  ],
+  "low_priority_keywords": [
+    "fyi",
+    "no action needed",
+    "newsletter",
+    "unsubscribe",
+    "digest",
+    "automated notification"
+  ],
+  "my_full_name": "",
+  "my_names": [],
+  "my_email": "",
+  "trusted_domains": ["intel.com"],
+  "weights": {
+    "external_domain_penalty": 30,
+    "priority_sender": 35,
+    "low_priority_sender": 25
+  },
+  "days_lookback": 14,
+  "max_body_chars": 500
+}

@@ -1,0 +1,10 @@
+# All personal/generated data lives here: config.json, priority_profile.md,
+# mail dumps, CSV reports, etc. Never commit this folder - it's per-user and
+# regenerated locally (config.default.json / priority_profile.default.md at
+# the repo root are the tracked, clean-slate templates instead).
+user_data/
+
+__pycache__/
+*.pyc
+.venv/
+venv/

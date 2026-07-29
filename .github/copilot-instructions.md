@@ -1,0 +1,41 @@
+# Outlook Mail Priority
+
+A Windows-only tool that scores unread/recent Outlook emails by priority and reports them (table, CSV, or a Tkinter popup GUI). Outlook COM automation via `pywin32`. There is exactly **one** intended AI path: **GitHub Copilot Chat in VS Code**, which runs this CLI's `--export-json`/`--gui-from-json` flags itself (via ordinary terminal commands and file edits) — Copilot itself reads the raw mail and assigns the subjective score/label/summary, informed by `RuleBasedScorer`'s deterministic hints. There is no in-process LLM API call anywhere in this codebase by design (no `openai`/`anthropic` dependency, no API keys to manage, no MCP server to register) — this keeps setup to just `pip install -r requirements.txt` (pywin32 only) for every teammate.
+
+## Architecture
+
+- [outlook_client.py](../outlook_client.py) — Outlook COM wrapper. `get_unread_emails()` / `get_recent_emails(limit)` return `MailInfo` (dataclass, includes a live `item` COM reference — never serialize `item` itself, use `entry_id` + `get_mail_item_by_entry_id()` to reconnect later).
+- [scorers.py](../scorers.py) — `RuleBasedScorer` only (deterministic, config.json-driven, no API calls, no external dependencies). Its `detect_signals()` output is handed to Copilot Chat as *hints*, not a scoring formula — the actual `score`/`label`/`summary` is Copilot's own subjective judgment call.
+- [main.py](../main.py) — CLI entry point. Key flags: `--recent N` (test against N most recent emails instead of unread-only), `--export-json PATH` (dump raw mail, no scoring), `--gui-from-json PATH` (load a JSON with `priority_score`/`priority_label`/`priority_reasons`/`priority_summary` fields, reconnect live Outlook items by `entry_id`, show the GUI), `--gui` (show GUI after normal rule-based scoring).
+- [gui.py](../gui.py) — Tkinter popup grouping mail by High/Medium/Low/Automated/External; double-click a row calls `mail_item.Display()` to open it in real Outlook.
+- [config.default.json](../config.default.json) / [priority_profile.default.md](../priority_profile.default.md) — tracked, clean-slate templates shipped with the repo (no personal data). The setup wizard copies/personalizes these into `user_data/config.json` and `user_data/priority_profile.md` on first run.
+- `user_data/config.json` — uses `priority_senders`, `low_priority_senders`, `name_patterns` (templated with `{name}` from `my_names`), `urgent_keywords`, `low_priority_keywords`, `trusted_domains`, `automated_senders`, `weights`. Every "combine X with names" idea should be a data-driven entry here, not new code.
+- `user_data/priority_profile.md` — free-text priorities fed to Copilot as context for the subjective scoring call.
+- `user_data/` — **never tracked in git** (see `.gitignore`). This is where every generated/personal artifact lives: `config.json`, `priority_profile.md`, mail dumps, CSV reports. This is what keeps the public repo privacy-safe: only the template/code files are published, nothing user-specific ever leaves the local machine.
+
+## The "ask Copilot to check my email priority" workflow
+
+When the user asks (in any phrasing) to check/prioritize/triage their inbox, or review recent/unread emails, do this yourself — this is the only scoring path in the product, not a fallback:
+
+1. Export raw mail data (no scoring): `python main.py --recent <N> --export-json user_data/mail_dump.json` (use `--recent` for a broad test sample; omit it to use only unread mail for a real check). Pick N based on how much the user asked for; default to a reasonable batch (e.g. 20-50) unless told otherwise.
+2. Read `user_data/mail_dump.json` with `read_file` (chunk large files; each entry is ~12 lines).
+3. For each entry, write your own **subjective** one-line summary (`priority_summary`) and a `priority_score`/`priority_label` (`"High"`/`"Medium"`/`"Low"`/`"Automated"`/`"External"`)/`priority_reasons` (short list of strings) — informed by `user_data/priority_profile.md` and `user_data/config.json`'s rules as *hints*, not a formula. Do not just copy/truncate the email body as the summary. **Machine-generated notifications must always be labeled `"Automated"`** (see below), never High/Medium/Low, regardless of how urgent their content sounds.
+4. Write these four fields back into the same JSON file (in place), keyed by the existing `entry_id`/array position — don't fabricate or reorder entries.
+5. Launch the GUI: `python main.py --gui-from-json user_data/mail_dump.json`. This reconnects each entry to its live Outlook item by `entry_id`, so double-click-to-open still works even though the GUI runs as a separate process from your reasoning step.
+6. Also give a brief ranked summary in chat, but the GUI is the primary deliverable.
+
+## The "Automated" category
+
+`RuleBasedScorer.is_automated_sender()` and you (Copilot, doing the actual scoring) both treat mail from known automated senders (`user_data/config.json`'s `automated_senders` list: `hsd-mail-prod*`, Jira, `@ecsmtp.` compute-session notices, Viva Engage/Yammer, PCI-SIG bulk mail, brokerage alerts, ...) as a **fourth category, `"Automated"`**, overriding High/Medium/Low. This exists because a bug-tracker email mentioning "Gen6 BER" or "critical" is not the same as a person asking for something — don't let keyword matches push automated notifications into High priority.
+
+The `automated_senders` list is a **hint, not a certainty** — it will never be complete. When you encounter a sender that isn't on the list, still use judgment: templated/ticket-system formatting, "unsubscribe"/"do not reply" boilerplate, no personalized greeting, or a system/service display name (rather than a person) are all signs of an automated notification even without a config match. The plain `RuleBasedScorer` (used standalone via `main.py` without Copilot) can only go by the literal config list, so it will miss unlisted automated senders — that's an accepted limitation of the deterministic-only path; add new automated senders to `user_data/config.json` as you notice them. See `user_data/priority_profile.md`'s "Automated notifications" section for the full rationale.
+
+## The "External" category
+
+Mail from a sender outside `user_data/config.json`'s `trusted_domains` (i.e. not `@intel.com`) is labeled **`"External"`** — a fifth category alongside High/Medium/Low/Automated. Precedence is **Automated > External > High/Medium/Low**: a mail that's both automated and external (PCI-SIG, E*Trade) stays `"Automated"`, since that's the more specific/useful classification. `RuleBasedScorer.is_external_sender()` implements this deterministically; apply the same precedence when scoring manually.
+
+## Conventions
+
+- `RuleBasedScorer` must stay fully deterministic — it's the free, no-API-key path. Don't make it call an LLM.
+- New "combine a prefix with `my_names`"-style rules go in `user_data/config.json`'s `name_patterns` list, not hardcoded in `scorers.py`.
+- Never commit anything under `user_data/` (see `.gitignore`) — it's the one folder allowed to contain real names/emails/mailbox content. Only `config.default.json`/`priority_profile.default.md` (generic templates) are tracked.
