@@ -139,8 +139,13 @@ def _parse_mail_item(item, current_user_address: str, max_body_chars: int) -> Ma
     )
 
 
-def get_unread_emails(days_lookback: int = 14, max_body_chars: int = 500) -> list[MailInfo]:
-    """Return unread emails from the default Inbox, newest first."""
+def get_unread_emails(days_lookback: int = 14, max_body_chars: int = 500, max_results: int = 200) -> list[MailInfo]:
+    """
+    Return unread emails from the default Inbox, newest first, within
+    `days_lookback` days. Capped at `max_results` (default 200) so a mailbox
+    with a huge unread backlog doesn't overload the scoring/summary step -
+    since items are sorted newest-first, this keeps the most recent ones.
+    """
     _outlook, namespace = _connect()
     inbox = namespace.GetDefaultFolder(OL_FOLDER_INBOX)
     current_user_address = _current_user_address(namespace)
@@ -153,6 +158,8 @@ def get_unread_emails(days_lookback: int = 14, max_body_chars: int = 500) -> lis
     results: list[MailInfo] = []
 
     for item in unread:
+        if len(results) >= max_results:
+            break
         try:
             received = item.ReceivedTime
             received_naive = dt.datetime(received.year, received.month, received.day,

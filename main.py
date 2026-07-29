@@ -224,6 +224,7 @@ def main() -> int:
             mails = get_unread_emails(
                 days_lookback=config.get("days_lookback", 14),
                 max_body_chars=config.get("max_body_chars", 500),
+                max_results=config.get("max_unread_results", 200),
             )
         _export_mails_json(args.export_json, mails)
         print(f"Wrote {len(mails)} email(s) to {args.export_json}")
@@ -247,8 +248,10 @@ def main() -> int:
         mails = get_unread_emails(
             days_lookback=config.get("days_lookback", 14),
             max_body_chars=config.get("max_body_chars", 500),
+            max_results=config.get("max_unread_results", 200),
         )
-        print(f"Found {len(mails)} unread email(s) within lookback window.")
+        print(f"Found {len(mails)} unread email(s) within lookback window "
+              f"(capped at {config.get('max_unread_results', 200)} most recent).")
 
     scored = []
     for mail in mails:

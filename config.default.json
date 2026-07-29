@@ -51,5 +51,6 @@
     "low_priority_sender": 25
   },
   "days_lookback": 14,
-  "max_body_chars": 500
+  "max_body_chars": 500,
+  "max_unread_results": 200
 }
