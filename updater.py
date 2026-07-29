@@ -115,14 +115,21 @@ def apply_update(branch: str, remote: str = "origin") -> tuple[bool, str]:
     return True, "Updated successfully. Restart the tool to use the new version."
 
 
-def prompt_and_apply(info: dict) -> None:
-    """Show a small Tkinter Yes/No dialog for an update found by check_for_updates(),
-    and apply it if the user accepts. Safe to call even with no other Tk window open."""
+def prompt_and_apply(info: dict, master=None) -> None:
+    """
+    Show a small Tkinter Yes/No dialog for an update found by check_for_updates(),
+    and apply it if the user accepts. Pass `master` (an existing Tk/Toplevel) to
+    attach the dialog to an already-open window (e.g. the priority GUI) instead
+    of creating a separate hidden root - avoids running two independent Tk
+    instances at once.
+    """
     import tkinter as tk
     from tkinter import messagebox
 
-    root = tk.Tk()
-    root.withdraw()
+    owns_root = master is None
+    if owns_root:
+        master = tk.Tk()
+        master.withdraw()
 
     commit_list = "\n".join(f"\u2022 {m}" for m in info["messages"])
     remaining = info["behind"] - len(info["messages"])
@@ -132,12 +139,45 @@ def prompt_and_apply(info: dict) -> None:
     proceed = messagebox.askyesno(
         "Update available",
         f"{info['behind']} new commit(s) available:\n\n{commit_list}\n\nUpdate now?",
+        parent=master,
     )
     if proceed:
         success, message = apply_update(info["branch"], info["remote"])
         if success:
-            messagebox.showinfo("Update complete", message)
+            messagebox.showinfo("Update complete", message, parent=master)
         else:
-            messagebox.showerror("Update failed", message)
+            messagebox.showerror("Update failed", message, parent=master)
 
-    root.destroy()
+    if owns_root:
+        master.destroy()
+
+
+def check_now_and_report(master=None) -> None:
+    """
+    Force a check right now (bypassing the rate limit) and always show the
+    user a result - either the update-available prompt, or a plain "you're up
+    to date" notice. Used by the GUI's "Check for Updates" button, where the
+    user expects visible feedback either way (unlike the silent automatic
+    background check).
+    """
+    import tkinter as tk
+    from tkinter import messagebox
+
+    owns_root = master is None
+    if owns_root:
+        master = tk.Tk()
+        master.withdraw()
+
+    info = check_for_updates(force=True)
+    if info:
+        prompt_and_apply(info, master=master)
+    else:
+        messagebox.showinfo(
+            "Check for updates",
+            "You're already on the latest version (or this isn't a git checkout with a remote configured).",
+            parent=master,
+        )
+
+    if owns_root:
+        master.destroy()
+

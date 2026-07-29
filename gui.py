@@ -131,8 +131,17 @@ def show_priority_popup(scored: list) -> None:
         from setup_wizard import run_wizard
         run_wizard(master=root)
 
+    def _open_check_updates() -> None:
+        from updater import check_now_and_report
+        check_now_and_report(master=root)
+
     tk.Button(
         header, text="Customize", command=_open_customize, font=_FONT_SUBTITLE,
+        bg=_GROUP_BG, fg=_HEADER_FG, activebackground=_BORDER, relief="flat",
+        padx=12, pady=4, cursor="hand2",
+    ).pack(side="right", padx=(0, 8))
+    tk.Button(
+        header, text="Check for Updates", command=_open_check_updates, font=_FONT_SUBTITLE,
         bg=_GROUP_BG, fg=_HEADER_FG, activebackground=_BORDER, relief="flat",
         padx=12, pady=4, cursor="hand2",
     ).pack(side="right", padx=(0, 8))
