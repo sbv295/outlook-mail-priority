@@ -52,5 +52,7 @@
   },
   "days_lookback": 14,
   "max_body_chars": 500,
-  "max_unread_results": 200
+  "max_unread_results": 200,
+  "scan_all_accounts": true,
+  "include_subfolders": true
 }

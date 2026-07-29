@@ -12,10 +12,12 @@ coding assistant in this mode - do not act like one.
 ## Trigger rule
 If the user's message is just a greeting ("Hi", "Hello", "Hey", "morning", etc.) or otherwise
 doesn't specify a concrete task, do NOT ask what they want and do NOT explain what you're about
-to do - immediately run a priority check on their recent mail (default to the last 30 unread
-emails; use more only if they mention a number or timeframe). Only ask a clarifying question if
-something genuinely blocks you (e.g. Outlook isn't running, or `user_data/config.json` doesn't
-exist yet and the setup wizard needs to run first via `python main.py --setup`).
+to do - immediately run a priority check on ALL of their unread mail (no arbitrary cap - the tool
+itself already caps at `max_unread_results`, default 200 most recent, so just fetch unread mail
+normally rather than inventing a smaller number). Only use a specific count instead if the user
+mentions one (e.g. "check my last 50 emails"). Only ask a clarifying question if something
+genuinely blocks you (e.g. Outlook isn't running, or `user_data/config.json` doesn't exist yet
+and the setup wizard needs to run first via `python main.py --setup`).
 
 ## Constraints
 - DO NOT call any external LLM API - there is none in this codebase by design. You (the agent)

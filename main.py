@@ -107,7 +107,7 @@ def _load_scored_from_json(path: Path) -> list:
     from outlook_client import MailInfo, get_mail_item_by_entry_id
     from scorers import _heuristic_summary
 
-    with open(path, "r", encoding="utf-8") as f:
+    with open(path, "r", encoding="utf-8-sig") as f:
         entries = json.load(f)
 
     scored = []
@@ -218,6 +218,8 @@ def main() -> int:
             mails = get_recent_emails(
                 limit=args.recent,
                 max_body_chars=config.get("max_body_chars", 500),
+                scan_all_accounts=config.get("scan_all_accounts", True),
+                include_subfolders=config.get("include_subfolders", True),
             )
         else:
             print("Connecting to Outlook and fetching unread mail...")
@@ -225,6 +227,8 @@ def main() -> int:
                 days_lookback=config.get("days_lookback", 14),
                 max_body_chars=config.get("max_body_chars", 500),
                 max_results=config.get("max_unread_results", 200),
+                scan_all_accounts=config.get("scan_all_accounts", True),
+                include_subfolders=config.get("include_subfolders", True),
             )
         _export_mails_json(args.export_json, mails)
         print(f"Wrote {len(mails)} email(s) to {args.export_json}")
@@ -241,6 +245,8 @@ def main() -> int:
         mails = get_recent_emails(
             limit=args.recent,
             max_body_chars=config.get("max_body_chars", 500),
+            scan_all_accounts=config.get("scan_all_accounts", True),
+            include_subfolders=config.get("include_subfolders", True),
         )
         print(f"Found {len(mails)} email(s).")
     else:
@@ -249,6 +255,8 @@ def main() -> int:
             days_lookback=config.get("days_lookback", 14),
             max_body_chars=config.get("max_body_chars", 500),
             max_results=config.get("max_unread_results", 200),
+            scan_all_accounts=config.get("scan_all_accounts", True),
+            include_subfolders=config.get("include_subfolders", True),
         )
         print(f"Found {len(mails)} unread email(s) within lookback window "
               f"(capped at {config.get('max_unread_results', 200)} most recent).")

@@ -139,33 +139,99 @@ def _parse_mail_item(item, current_user_address: str, max_body_chars: int) -> Ma
     )
 
 
-def get_unread_emails(days_lookback: int = 14, max_body_chars: int = 500, max_results: int = 200) -> list[MailInfo]:
+def _iter_folders_recursive(folder, include_subfolders: bool):
+    yield folder
+    if include_subfolders:
+        try:
+            for sub in folder.Folders:
+                yield from _iter_folders_recursive(sub, include_subfolders)
+        except Exception:
+            pass
+
+
+def _get_target_inbox_folders(namespace, scan_all_accounts: bool, include_subfolders: bool):
     """
-    Return unread emails from the default Inbox, newest first, within
-    `days_lookback` days. Capped at `max_results` (default 200) so a mailbox
-    with a huge unread backlog doesn't overload the scoring/summary step -
-    since items are sorted newest-first, this keeps the most recent ones.
+    Yield Outlook Folder COM objects to scan for mail: the default Inbox
+    (plus its subfolders if `include_subfolders` - e.g. ones an Outlook rule
+    auto-files mail into), and optionally the Inbox of every other mail
+    account/store on this Outlook profile (secondary accounts, shared
+    mailboxes) if `scan_all_accounts`. De-duplicates by folder EntryID so the
+    default account isn't scanned twice.
+    """
+    seen_entry_ids: set[str] = set()
+
+    def _emit(folder):
+        try:
+            entry_id = folder.EntryID
+        except Exception:
+            entry_id = None
+        if entry_id:
+            if entry_id in seen_entry_ids:
+                return
+            seen_entry_ids.add(entry_id)
+        yield from _iter_folders_recursive(folder, include_subfolders)
+
+    yield from _emit(namespace.GetDefaultFolder(OL_FOLDER_INBOX))
+
+    if scan_all_accounts:
+        for root_folder in namespace.Folders:
+            try:
+                inbox = root_folder.Folders["Inbox"]
+            except Exception:
+                continue  # this account/store has no Inbox subfolder (e.g. a public folder)
+            yield from _emit(inbox)
+
+
+def get_unread_emails(
+    days_lookback: int = 14,
+    max_body_chars: int = 500,
+    max_results: int = 200,
+    scan_all_accounts: bool = True,
+    include_subfolders: bool = True,
+) -> list[MailInfo]:
+    """
+    Return unread emails, newest first, within `days_lookback` days, capped at
+    `max_results` (default 200 most recent) so a huge unread backlog doesn't
+    overload the scoring/summary step.
+
+    By default this scans every account/mailbox on the Outlook profile
+    (`scan_all_accounts`) and every subfolder under each Inbox
+    (`include_subfolders`) - so mail an Outlook rule has filed into a
+    subfolder, or mail in a secondary/shared mailbox, is included too. Set
+    either to False (via config.json) to restrict back to just the default
+    Inbox.
     """
     _outlook, namespace = _connect()
-    inbox = namespace.GetDefaultFolder(OL_FOLDER_INBOX)
     current_user_address = _current_user_address(namespace)
-
-    items = inbox.Items
-    items.Sort("[ReceivedTime]", True)  # newest first
-    unread = items.Restrict("[Unread] = true")
-
     cutoff = dt.datetime.now() - dt.timedelta(days=days_lookback)
-    results: list[MailInfo] = []
 
-    for item in unread:
+    candidates: list[tuple[dt.datetime, Any]] = []
+    for folder in _get_target_inbox_folders(namespace, scan_all_accounts, include_subfolders):
+        try:
+            items = folder.Items
+            items.Sort("[ReceivedTime]", True)  # newest first
+            unread = items.Restrict("[Unread] = true")
+        except Exception:
+            continue  # folder doesn't support Items/Restrict (e.g. a non-mail folder)
+
+        for item in unread:
+            try:
+                received = item.ReceivedTime
+                received_naive = dt.datetime(received.year, received.month, received.day,
+                                              received.hour, received.minute, received.second)
+                if received_naive < cutoff:
+                    continue
+                candidates.append((received_naive, item))
+            except Exception:
+                continue
+
+    candidates.sort(key=lambda pair: pair[0], reverse=True)
+
+    results: list[MailInfo] = []
+    for _received, item in candidates:
         if len(results) >= max_results:
             break
         try:
-            received = item.ReceivedTime
-            received_naive = dt.datetime(received.year, received.month, received.day,
-                                          received.hour, received.minute, received.second)
-            if received_naive < cutoff:
-                continue
             mail_info = _parse_mail_item(item, current_user_address, max_body_chars)
             if mail_info is not None:
                 results.append(mail_info)
@@ -176,21 +242,46 @@ def get_unread_emails(days_lookback: int = 14, max_body_chars: int = 500, max_re
     return results
 
 
-def get_recent_emails(limit: int = 100, max_body_chars: int = 500) -> list[MailInfo]:
+def get_recent_emails(
+    limit: int = 100,
+    max_body_chars: int = 500,
+    scan_all_accounts: bool = True,
+    include_subfolders: bool = True,
+) -> list[MailInfo]:
     """
-    Return the most recent `limit` emails from the default Inbox, newest first,
-    regardless of read/unread status. Intended for testing the scorer against a
-    broader, realistic sample rather than only today's unread mail.
+    Return the most recent `limit` emails, newest first, regardless of
+    read/unread status. Intended for testing the scorer against a broader,
+    realistic sample rather than only today's unread mail. Same
+    all-accounts/all-subfolders coverage as get_unread_emails() by default.
     """
     _outlook, namespace = _connect()
-    inbox = namespace.GetDefaultFolder(OL_FOLDER_INBOX)
     current_user_address = _current_user_address(namespace)
 
-    items = inbox.Items
-    items.Sort("[ReceivedTime]", True)  # newest first
+    candidates: list[tuple[dt.datetime, Any]] = []
+    for folder in _get_target_inbox_folders(namespace, scan_all_accounts, include_subfolders):
+        try:
+            items = folder.Items
+            items.Sort("[ReceivedTime]", True)  # newest first
+        except Exception:
+            continue
+
+        count = 0
+        for item in items:
+            if count >= limit:  # per-folder cap; the real cap is applied after merging below
+                break
+            try:
+                received = item.ReceivedTime
+                received_naive = dt.datetime(received.year, received.month, received.day,
+                                              received.hour, received.minute, received.second)
+                candidates.append((received_naive, item))
+                count += 1
+            except Exception:
+                continue
+
+    candidates.sort(key=lambda pair: pair[0], reverse=True)
 
     results: list[MailInfo] = []
-    for item in items:
+    for _received, item in candidates:
         if len(results) >= limit:
             break
         try:
