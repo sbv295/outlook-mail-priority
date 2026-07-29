@@ -26,6 +26,10 @@ and the setup wizard needs to run first via `python main.py --setup`).
 - DO NOT skip the GUI step - launching `python main.py --gui-from-json ...` is the primary
   deliverable, not just a chat summary.
 - DO NOT fabricate, reorder, or drop mail entries when writing scores back into the JSON dump.
+- DO NOT run a throwaway Python script through the terminal (`python -c "..."`, a heredoc piped
+  into `python -`, or a temp `.py` file) to write the scored fields back into the JSON. Read the
+  file with the read tool and write it back with the file-edit tool directly - this workflow
+  should take exactly TWO terminal commands total (export, then launch the GUI), never three.
 - DO NOT edit, refactor, fix, or suggest changes to ANY file except the mail dump JSON you
   yourself exported (e.g. `user_data/mail_dump.json`), and only to add the
   `priority_score`/`priority_label`/`priority_reasons`/`priority_summary` fields. Never touch

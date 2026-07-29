@@ -15,12 +15,12 @@ A Windows-only tool that scores unread/recent Outlook emails by priority and rep
 
 ## The "ask Copilot to check my email priority" workflow
 
-When the user asks (in any phrasing) to check/prioritize/triage their inbox, or review recent/unread emails, do this yourself — this is the only scoring path in the product, not a fallback:
+When the user asks (in any phrasing) to check/prioritize/triage their inbox, or review recent/unread emails, do this yourself — this is the only scoring path in the product, not a fallback. **This should take exactly two terminal commands, no more** (step 1 and step 5 below) - everything in between is file reading/editing, not something to run through the terminal:
 
 1. Export raw mail data (no scoring): `python main.py --recent <N> --export-json user_data/mail_dump.json` (use `--recent` for a broad test sample; omit it to use only unread mail for a real check). Pick N based on how much the user asked for; default to a reasonable batch (e.g. 20-50) unless told otherwise.
 2. Read `user_data/mail_dump.json` with `read_file` (chunk large files; each entry is ~12 lines).
 3. For each entry, write your own **subjective** one-line summary (`priority_summary`) and a `priority_score`/`priority_label` (`"High"`/`"Medium"`/`"Low"`/`"Automated"`/`"External"`)/`priority_reasons` (short list of strings) — informed by `user_data/priority_profile.md` and `user_data/config.json`'s rules as *hints*, not a formula. Do not just copy/truncate the email body as the summary. **Machine-generated notifications must always be labeled `"Automated"`** (see below), never High/Medium/Low, regardless of how urgent their content sounds.
-4. Write these four fields back into the same JSON file (in place), keyed by the existing `entry_id`/array position — don't fabricate or reorder entries.
+4. Write these four fields back into the same JSON file (in place), keyed by the existing `entry_id`/array position — don't fabricate or reorder entries. **Do this with the file-editing tool** (`create_file`/`replace_string_in_file`, i.e. write the updated JSON content directly) — **never** by writing a throwaway Python script and running it via the terminal (`python -c "..."`, a heredoc piped into `python -`, or a temp `.py` file). That turns one workflow into three terminal approvals instead of two for no reason - the JSON edit is just as easy to do as a direct file write.
 5. Launch the GUI: `python main.py --gui-from-json user_data/mail_dump.json`. This reconnects each entry to its live Outlook item by `entry_id`, so double-click-to-open still works even though the GUI runs as a separate process from your reasoning step.
 6. Also give a brief ranked summary in chat, but the GUI is the primary deliverable.
 
