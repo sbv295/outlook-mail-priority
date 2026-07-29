@@ -228,6 +228,7 @@ def get_unread_emails(
     candidates.sort(key=lambda pair: pair[0], reverse=True)
 
     results: list[MailInfo] = []
+    skipped_non_mail = 0
     for _received, item in candidates:
         if len(results) >= max_results:
             break
@@ -235,9 +236,18 @@ def get_unread_emails(
             mail_info = _parse_mail_item(item, current_user_address, max_body_chars)
             if mail_info is not None:
                 results.append(mail_info)
+            else:
+                skipped_non_mail += 1  # e.g. a meeting request/cancellation, not a regular email
         except Exception:
             # Skip items that fail to parse (e.g. non-standard message classes)
             continue
+
+    if skipped_non_mail:
+        print(
+            f"Note: {skipped_non_mail} unread item(s) were meeting invites/cancellations "
+            f"(or other non-email items), not scored by this tool - handle those directly in "
+            f"Outlook. This is why the count here may be lower than Outlook's unread badge."
+        )
 
     return results
 
