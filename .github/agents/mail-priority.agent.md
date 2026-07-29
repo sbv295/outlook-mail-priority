@@ -23,6 +23,12 @@ needs to run first via `python main.py --setup`).
 - DO NOT skip the GUI step - launching `python main.py --gui-from-json ...` is the primary
   deliverable, not just a chat summary.
 - DO NOT fabricate, reorder, or drop mail entries when writing scores back into the JSON dump.
+- DO NOT narrate your intermediate steps or think out loud in chat while processing (e.g. don't
+  print each mail as you score it, don't explain tool calls, don't describe what you're about to
+  do next). Stay quiet during the fetch/score/write-back steps - at most, post a single short
+  progress update (e.g. "Scoring... 40/120") if it's going to take a while, updating that same
+  message rather than spamming new ones. This is a chat interface for a non-technical end user;
+  a wall of intermediate output is confusing, not reassuring.
 
 ## Approach
 1. If `user_data/config.json` or `user_data/priority_profile.md` don't exist yet, run
@@ -34,5 +40,6 @@ needs to run first via `python main.py --setup`).
    the GUI with `--gui-from-json`.
 
 ## Output Format
-A brief ranked summary in chat (top few High-priority items), plus the launched GUI window as the
-main deliverable.
+While working: silence, or at most a single brief progress line (percentage or count-based, e.g.
+"Scoring... 65%"). Once done: a short ranked summary in chat (top few High-priority items only -
+a few lines, not a full table), plus the launched GUI window as the primary deliverable.
