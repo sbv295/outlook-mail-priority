@@ -199,11 +199,22 @@ def show_priority_popup(scored: list) -> None:
     content = tk.Frame(canvas, bg=_ROW_BG)
     content_window = canvas.create_window((0, 0), window=content, anchor="nw")
 
+    def _update_scrollregion() -> None:
+        # Compute the scrollregion explicitly from content's own requested size
+        # rather than canvas.bbox("all") - bbox can lag behind the true content
+        # size right after widgets are added/removed, which let the canvas
+        # scroll into space above the top item or below the last one.
+        content.update_idletasks()
+        width = max(content.winfo_reqwidth(), canvas.winfo_width())
+        height = content.winfo_reqheight()
+        canvas.configure(scrollregion=(0, 0, width, height))
+
     def _on_content_configure(_event=None) -> None:
-        canvas.configure(scrollregion=canvas.bbox("all"))
+        _update_scrollregion()
 
     def _on_canvas_configure(event) -> None:
         canvas.itemconfigure(content_window, width=event.width)
+        _update_scrollregion()
 
     content.bind("<Configure>", _on_content_configure)
     canvas.bind("<Configure>", _on_canvas_configure)
@@ -211,7 +222,17 @@ def show_priority_popup(scored: list) -> None:
     def _on_mousewheel(event) -> None:
         canvas.yview_scroll(int(-1 * (event.delta / 120)), "units")
 
-    canvas.bind_all("<MouseWheel>", _on_mousewheel)
+    def _bind_mousewheel(_event=None) -> None:
+        canvas.bind_all("<MouseWheel>", _on_mousewheel)
+
+    def _unbind_mousewheel(_event=None) -> None:
+        canvas.unbind_all("<MouseWheel>")
+
+    # Only capture the mousewheel globally while the pointer is actually over
+    # this list - a permanent bind_all() would also hijack scrolling in other
+    # windows (e.g. the Customize dialog) and over the header/status bars.
+    canvas.bind("<Enter>", _bind_mousewheel)
+    canvas.bind("<Leave>", _unbind_mousewheel)
 
     def _fmt_time(mail) -> str:
         return mail.received.strftime("%b %d, %I:%M %p")
@@ -231,8 +252,7 @@ def show_priority_popup(scored: list) -> None:
         # the next idle cycle's <Configure> event) and re-clamp the scroll
         # region - otherwise collapsing content leaves the canvas still
         # scrollable into space that no longer has any content in it.
-        content.update_idletasks()
-        canvas.configure(scrollregion=canvas.bbox("all"))
+        _update_scrollregion()
         top, bottom = canvas.yview()
         if top > 0 and bottom >= 1.0:
             canvas.yview_moveto(0)
