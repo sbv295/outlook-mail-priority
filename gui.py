@@ -12,6 +12,25 @@ from tkinter import messagebox, ttk
 
 LABEL_ORDER = ["High", "Medium", "Low", "Automated", "External"]
 
+
+def _enable_dpi_awareness() -> None:
+    """
+    Windows-only: without this, Tkinter renders the whole window at a lower
+    effective resolution and lets Windows bitmap-scale it up on high-DPI
+    displays, which looks noticeably blurrier/lower-DPI than native Windows
+    apps. Safe to call more than once (e.g. from multiple entry points) -
+    failures are silently ignored (non-Windows, or already set).
+    """
+    try:
+        import ctypes
+        ctypes.windll.shcore.SetProcessDpiAwareness(1)  # PROCESS_SYSTEM_DPI_AWARE
+    except Exception:
+        try:
+            import ctypes
+            ctypes.windll.user32.SetProcessDPIAware()  # fallback for older Windows
+        except Exception:
+            pass
+
 # Solid, saturated colors used for the small category flag/badge on each row
 # (Outlook uses colored category tags rather than tinting the whole row).
 LABEL_COLORS = {
@@ -98,6 +117,7 @@ def show_priority_popup(scored: list) -> None:
     caller likes (this function re-groups by label, preserving relative order
     within each label).
     """
+    _enable_dpi_awareness()
     grouped: dict[str, list] = {lbl: [] for lbl in LABEL_ORDER}
     for mail, result in scored:
         grouped.setdefault(result.label, []).append((mail, result))
@@ -206,6 +226,16 @@ def show_priority_popup(scored: list) -> None:
             # back where it belongs, right after its own header's divider.
             body.pack(fill="x", after=anchor)
             arrow_label.configure(text="\u25be")  # expanded
+
+        # Force the geometry manager to recompute NOW (rather than waiting for
+        # the next idle cycle's <Configure> event) and re-clamp the scroll
+        # region - otherwise collapsing content leaves the canvas still
+        # scrollable into space that no longer has any content in it.
+        content.update_idletasks()
+        canvas.configure(scrollregion=canvas.bbox("all"))
+        top, bottom = canvas.yview()
+        if top > 0 and bottom >= 1.0:
+            canvas.yview_moveto(0)
 
     for lbl in LABEL_ORDER:
         entries = grouped.get(lbl, [])

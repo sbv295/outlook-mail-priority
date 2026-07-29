@@ -28,6 +28,20 @@ APP_DIR = Path(__file__).parent
 USER_DATA_DIR = APP_DIR / "user_data"
 USER_DATA_DIR.mkdir(exist_ok=True)
 
+
+def _enable_dpi_awareness() -> None:
+    """Windows-only: see gui.py's copy of this function for why this matters.
+    Safe to call more than once."""
+    try:
+        import ctypes
+        ctypes.windll.shcore.SetProcessDpiAwareness(1)
+    except Exception:
+        try:
+            import ctypes
+            ctypes.windll.user32.SetProcessDPIAware()
+        except Exception:
+            pass
+
 CONFIG_PATH = USER_DATA_DIR / "config.json"
 CONFIG_DEFAULT_PATH = APP_DIR / "config.default.json"
 PROFILE_PATH = USER_DATA_DIR / "priority_profile.md"
@@ -268,6 +282,8 @@ def run_wizard(master: tk.Misc | None = None) -> bool:
     saved = {"value": False}
 
     owns_root = master is None
+    if owns_root:
+        _enable_dpi_awareness()
     win = tk.Tk() if owns_root else tk.Toplevel(master)
     win.title("Set Up Your Priorities")
     win.geometry("760x680")
