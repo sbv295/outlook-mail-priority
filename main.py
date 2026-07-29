@@ -73,9 +73,18 @@ def _write_csv(path: Path, scored: list) -> None:
             ])
 
 
-def _export_mails_json(path: Path, mails: list) -> None:
-    """Dump raw mail fields (no scoring) so they can be reviewed ad hoc, e.g. by
-    reading this file directly rather than calling an LLM API."""
+def _export_mails_json(path: Path, mails: list, config: dict) -> None:
+    """
+    Dump raw mail fields (no final scoring) so they can be reviewed ad hoc, e.g.
+    by reading this file directly rather than calling an LLM API. Each entry
+    also includes 'rule_hints' - RuleBasedScorer.detect_signals() output,
+    computed once here with the same tested, deterministic logic as the CLI's
+    own scoring path (correct sender-name matching regardless of Outlook's
+    "Last, First" display order, automated-sender detection, etc.). The point
+    is to remove any need for whoever/whatever reads this file to re-derive
+    those checks by eye - the fact is already computed and sitting in the data.
+    """
+    scorer = RuleBasedScorer(config)
     data = [
         {
             "entry_id": mail.entry_id,
@@ -88,6 +97,7 @@ def _export_mails_json(path: Path, mails: list) -> None:
             "flagged": mail.flagged,
             "importance": mail.importance,
             "categories": mail.categories,
+            "rule_hints": scorer.detect_signals(mail),
         }
         for mail in mails
     ]
@@ -230,7 +240,7 @@ def main() -> int:
                 scan_all_accounts=config.get("scan_all_accounts", True),
                 include_subfolders=config.get("include_subfolders", True),
             )
-        _export_mails_json(args.export_json, mails)
+        _export_mails_json(args.export_json, mails, config)
         print(f"Wrote {len(mails)} email(s) to {args.export_json}")
         return 0
 

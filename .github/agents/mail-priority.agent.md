@@ -21,8 +21,11 @@ and the setup wizard needs to run first via `python main.py --setup`).
 
 ## Constraints
 - DO NOT call any external LLM API - there is none in this codebase by design. You (the agent)
-  are the only "AI" - scoring is your own subjective judgment, informed by `user_data/config.json`
-  and `user_data/priority_profile.md` as hints, not a formula.
+  are the only "AI" - scoring is your own subjective judgment, informed by `user_data/config.json`,
+  `user_data/priority_profile.md`, and each exported entry's own `rule_hints` field as hints, not
+  a formula. `rule_hints` already contains verified sender-name/keyword matches (correct
+  regardless of Outlook's "Last, First" display order) - trust it instead of re-checking sender
+  names against config yourself.
 - DO NOT skip the GUI step - launching `python main.py --gui-from-json ...` is the primary
   deliverable, not just a chat summary.
 - DO NOT fabricate, reorder, or drop mail entries when writing scores back into the JSON dump.
