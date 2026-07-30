@@ -17,6 +17,16 @@ RECIPIENT_TYPE_TO = 1
 RECIPIENT_TYPE_CC = 2
 RECIPIENT_TYPE_BCC = 3
 
+OL_MAIL = 43
+# Meeting requests/cancellations arrive in the Inbox as their own item types
+# (not olMail), but carry a Body that often has the organizer's agenda/
+# description text - worth scoring like a regular mail. Meeting *responses*
+# (accept/decline/tentative, classes 55-57) are plain RSVP acks with no real
+# content, so they're intentionally left out.
+OL_MEETING_REQUEST = 53
+OL_MEETING_CANCELLATION = 54
+MEETING_ITEM_CLASSES = {OL_MEETING_REQUEST: "Request", OL_MEETING_CANCELLATION: "Cancellation"}
+
 
 @dataclass
 class MailInfo:
@@ -32,6 +42,8 @@ class MailInfo:
     body_preview: str
     categories: str
     item: Any = field(repr=False, compare=False)  # live COM MailItem, not for CSV export
+    is_meeting: bool = False
+    meeting_type: str = ""  # "Request" or "Cancellation" when is_meeting is True, else ""
 
 
 def _connect():
@@ -106,7 +118,10 @@ def _recipient_type_for_current_user(mail_item, current_user_address: str) -> st
 
 
 def _parse_mail_item(item, current_user_address: str, max_body_chars: int) -> MailInfo | None:
-    if item.Class != 43:  # olMail
+    item_class = item.Class
+    meeting_type = MEETING_ITEM_CLASSES.get(item_class, "")
+    is_meeting = bool(meeting_type)
+    if item_class != OL_MAIL and not is_meeting:
         return None
     received = item.ReceivedTime
     received_naive = dt.datetime(received.year, received.month, received.day,
@@ -136,6 +151,8 @@ def _parse_mail_item(item, current_user_address: str, max_body_chars: int) -> Ma
         body_preview=body,
         categories=item.Categories or "",
         item=item,
+        is_meeting=is_meeting,
+        meeting_type=meeting_type,
     )
 
 
@@ -237,16 +254,17 @@ def get_unread_emails(
             if mail_info is not None:
                 results.append(mail_info)
             else:
-                skipped_non_mail += 1  # e.g. a meeting request/cancellation, not a regular email
+                skipped_non_mail += 1  # e.g. a meeting response (accept/decline/tentative), task, or other non-mail item
         except Exception:
             # Skip items that fail to parse (e.g. non-standard message classes)
             continue
 
     if skipped_non_mail:
         print(
-            f"Note: {skipped_non_mail} unread item(s) were meeting invites/cancellations "
-            f"(or other non-email items), not scored by this tool - handle those directly in "
-            f"Outlook. This is why the count here may be lower than Outlook's unread badge."
+            f"Note: {skipped_non_mail} unread item(s) were meeting responses (accept/decline/"
+            f"tentative) or other non-email items, not scored by this tool - handle those "
+            f"directly in Outlook. Meeting requests/cancellations *are* scored. This is why the "
+            f"count here may be lower than Outlook's unread badge."
         )
 
     return results

@@ -97,6 +97,8 @@ def _export_mails_json(path: Path, mails: list, config: dict) -> None:
             "flagged": mail.flagged,
             "importance": mail.importance,
             "categories": mail.categories,
+            "is_meeting": mail.is_meeting,
+            "meeting_type": mail.meeting_type,
             "rule_hints": scorer.detect_signals(mail),
         }
         for mail in mails
@@ -144,6 +146,8 @@ def _load_scored_from_json(path: Path) -> list:
             body_preview=entry.get("body_preview", ""),
             categories=entry.get("categories", ""),
             item=item,
+            is_meeting=entry.get("is_meeting", False),
+            meeting_type=entry.get("meeting_type", ""),
         )
         result = ScoreResult(
             score=entry.get("priority_score", 0),

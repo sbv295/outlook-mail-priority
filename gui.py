@@ -315,8 +315,11 @@ def show_priority_popup(scored: list) -> None:
             )
             badge_lbl.pack(side="right", padx=(0, 10))
 
+            subject_text = mail.subject
+            if mail.is_meeting:
+                subject_text = f"\U0001F4C5 {subject_text}"  # calendar icon - meeting request/cancellation
             subject_lbl = tk.Label(
-                main, text=mail.subject, bg=_ROW_BG, fg=_TEXT, font=_FONT_SUBJECT,
+                main, text=subject_text, bg=_ROW_BG, fg=_TEXT, font=_FONT_SUBJECT,
                 anchor="w", justify="left", wraplength=_WRAP_PX,
             )
             subject_lbl.pack(fill="x", anchor="w", pady=(4, 0))

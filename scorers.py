@@ -160,6 +160,13 @@ class RuleBasedScorer(BaseScorer):
         if sender_domain in self.vip_domains:
             signals.append((25, "VIP domain"))
 
+        # Rule 0: meeting requests/cancellations carry no score weight of their own -
+        # this is just a flag telling whoever scores it (Copilot) to actually read the
+        # body for an agenda/action items/description, rather than treating an empty-
+        # looking meeting body as automatically low priority.
+        if mail.is_meeting:
+            signals.append((0, f"Meeting {mail.meeting_type.lower()} - check body for agenda/description/action items"))
+
         # Rule 1: any configured name pattern (mentions, greetings, tags, ...) found
         # in the subject/body
         search_text = f"{mail.subject} {mail.body_preview}"
